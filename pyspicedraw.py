@@ -3,23 +3,53 @@
 
 import schemdraw
 import schemdraw.elements as elm
+import random
 
 translate_type = {
 "VoltageSource" : elm.SourceV,
 "Resistor" : elm.Resistor
     }
 
+opposite = {
+    "right" : "left",
+    "left" : "right",
+    "up": "down",
+    "down" : "up"
+}
 
 
+def take_direction(takenDirDict, node, direction):
+    if node in takenDirDict.keys():
+        takenDirDict[node].append(direction)
+    else:
+        takenDirDict[node] = [direction]
+
+def avail_directions(takenDirDict, node):
+    if node not in takenDirDict.keys():
+        return ["up", "down", "right", "left"]
+
+    l = []
+    for direction in ["up", "down", "right", "left"]:
+        if direction not in takenDirDict[node]:
+            l.append(direction)
+    return l
+
+def rand_dir(takenDirDict, node):
+    return random.choice(avail_directions(takenDirDict, node))
+
+
+    
 
 
 def draw(circuit):
     knownNodes = dict()
-    with schemdraw.Drawing() as d:
-        #elm.Resistor() # temporary
+    takenDirections = dict()
+    firstElement = True
+    
+    with schemdraw.Drawing():
         
         for element in circuit.elements:
-            print(element.__class__.__name__, element.name, element.nodes, type(element.nodes))
+            print(element.__class__.__name__, element.name, element.nodes)
             elmtype = translate_type[element.__class__.__name__]
             
             nodes = [None, None]
@@ -28,21 +58,45 @@ def draw(circuit):
                     nodes[i] = knownNodes[element.nodes[i]]
 
             
-            if nodes[0] == None and nodes[1] == None: #assume first element
-                comp = elmtype()
-                d.add(comp)
+            if firstElement:
+                comp = elmtype().up().label(element.name)
                 knownNodes[element.nodes[0]] = comp.start
                 knownNodes[element.nodes[1]] = comp.end
 
+                take_direction(takenDirections, comp.start, "up")
+                take_direction(takenDirections, comp.end, "down")
+
+                firstElement = False
+
             elif nodes[0] != None and nodes[1] == None:
-                comp = elmtype().right().at(nodes[0])
-                d.add(comp)
+                direction = rand_dir(takenDirections, nodes[0])
+
+                if direction == "up": comp = elmtype().label(element.name).up().at(nodes[0])
+                if direction == "down": comp = elmtype().label(element.name).down().at(nodes[0])
+                if direction == "right": comp = elmtype().label(element.name).right().at(nodes[0])
+                if direction == "left": comp = elmtype().label(element.name).left().at(nodes[0])
+
+                take_direction(takenDirections, nodes[0], direction)
+                take_direction(takenDirections, comp.end, opposite[direction])
+                
+                #w = elm.Wire("-|").at(nodes[0])
+                #comp = elmtype().label(element.name).right().at(w.end)
+                
                 knownNodes[element.nodes[1]] = comp.end
 
             elif nodes[0] != None and nodes[1] != None:
-                print(nodes)
-                comp = elmtype().endpoints(nodes[0], nodes[1])
-                d.add(comp)
+                comp = elmtype().label(element.name).endpoints(nodes[0], nodes[1])
+                
+                #w = elm.Wire("|-").at(nodes[0])
+                #comp = elmtype().label(element.name).at(w.end)
+                #elm.Wire("|-").endpoints(comp.end, nodes[1])
+                
+                #comp = elmtype().label(element.name).at(nodes[0])
+                #print(nodes)
+                #print(comp.end)
+                #elm.Wire().to(nodes[1])
+
+                #comp = elmtype().label(element.name).endpoints(nodes[0], nodes[1])
 
             else:
                 print("ERROR: ", nodes)
