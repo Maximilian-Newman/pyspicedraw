@@ -51,10 +51,11 @@ def generate_label(element):
     
 
 
-def draw(circuit, predefinedNodes = None):
+def draw(circuit, predefinedNodes = None, separateGround = False, groundNode = "0"):
     knownNodes = dict()
     takenDirections = dict()
     firstElement = True
+    gndCount = 0
 
     if predefinedNodes != None:
         for obj in predefinedNodes:
@@ -63,27 +64,36 @@ def draw(circuit, predefinedNodes = None):
     with schemdraw.Drawing():
         
         for element in circuit.elements:
-            print(element.__class__.__name__, element.name, element.nodes, str(element.nodes[0]))
+            print(element.__class__.__name__, element.name, element.nodes)
             elmtype = translate_type[element.__class__.__name__]
 
             comp = None
             
             nodes = [None, None]
-            for i in range(0, len(element.nodes)):
-                if str(element.nodes[i]) in knownNodes.keys():
-                    nodes[i] = knownNodes[str(element.nodes[i])]
+            nodeNames = [str(i) for i in element.nodes]
+
+            if separateGround:
+                for i in range(0, len(nodeNames)):
+                    if nodeNames[i] == groundNode:
+                        print(nodeNames[i])
+                        nodeNames[i] = "GND_" + str(gndCount)
+                        gndCount += 1
+            
+            for i in range(0, len(nodeNames)):
+                if nodeNames[i] in knownNodes.keys():
+                    print(nodeNames[i])
+                    nodes[i] = knownNodes[nodeNames[i]]
 
             
             if firstElement and nodes[0] == None and nodes[1] == None:
                 comp = elmtype().up()
-                knownNodes[str(element.nodes[0])] = comp.start
-                knownNodes[str(element.nodes[1])] = comp.end
+                knownNodes[nodeNames[0]] = comp.start
+                knownNodes[nodeNames[1]] = comp.end
 
                 take_direction(takenDirections, comp.start, "up")
                 take_direction(takenDirections, comp.end, "down")
 
             elif nodes[0] != None and nodes[1] == None:
-            #elif nodes[0] != None:
                 print(nodes)
                 direction = rand_dir(takenDirections, nodes[0])
 
@@ -95,10 +105,7 @@ def draw(circuit, predefinedNodes = None):
                 take_direction(takenDirections, nodes[0], direction)
                 take_direction(takenDirections, comp.end, opposite[direction])
                 
-                #w = elm.Wire("-|").at(nodes[0])
-                #comp = elmtype().label(element.name).right().at(w.end)
-                
-                knownNodes[str(element.nodes[1])] = comp.end
+                knownNodes[nodeNames[1]] = comp.end
 
 
 
@@ -110,6 +117,7 @@ def draw(circuit, predefinedNodes = None):
 
             if elmtype == elm.SourceV: # PySpice defines + as first node, - as second
                 comp.reverse()
+                print("did flip")
 
             comp.label(generate_label(element))
 
