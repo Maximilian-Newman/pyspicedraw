@@ -19,12 +19,16 @@ opposite = {
 
 
 def take_direction(takenDirDict, node, direction):
+    node = schemdraw.util.Point(node)
+    
     if node in takenDirDict.keys():
         takenDirDict[node].append(direction)
     else:
         takenDirDict[node] = [direction]
 
 def avail_directions(takenDirDict, node):
+    node = schemdraw.util.Point(node)
+    
     if node not in takenDirDict.keys():
         return ["up", "down", "right", "left"]
 
@@ -37,7 +41,13 @@ def avail_directions(takenDirDict, node):
 def rand_dir(takenDirDict, node):
     return random.choice(avail_directions(takenDirDict, node))
 
-
+def generate_label(element):
+    label = element.name
+    if element.__class__.__name__ == "VoltageSource":
+        label += "\n" + str(element.dc_value)
+    elif element.__class__.__name__ == "Resistor":
+        label += "\n" + str(element.resistance)
+    return label
     
 
 
@@ -55,6 +65,8 @@ def draw(circuit, predefinedNodes = None):
         for element in circuit.elements:
             print(element.__class__.__name__, element.name, element.nodes, str(element.nodes[0]))
             elmtype = translate_type[element.__class__.__name__]
+
+            comp = None
             
             nodes = [None, None]
             for i in range(0, len(element.nodes)):
@@ -62,23 +74,23 @@ def draw(circuit, predefinedNodes = None):
                     nodes[i] = knownNodes[str(element.nodes[i])]
 
             
-            if firstElement:
-                comp = elmtype().up().label(element.name)
+            if firstElement and nodes[0] == None and nodes[1] == None:
+                comp = elmtype().up()
                 knownNodes[str(element.nodes[0])] = comp.start
                 knownNodes[str(element.nodes[1])] = comp.end
 
                 take_direction(takenDirections, comp.start, "up")
                 take_direction(takenDirections, comp.end, "down")
 
-                firstElement = False
-
             elif nodes[0] != None and nodes[1] == None:
+            #elif nodes[0] != None:
+                print(nodes)
                 direction = rand_dir(takenDirections, nodes[0])
 
-                if direction == "up": comp = elmtype().label(element.name).up().at(nodes[0])
-                if direction == "down": comp = elmtype().label(element.name).down().at(nodes[0])
-                if direction == "right": comp = elmtype().label(element.name).right().at(nodes[0])
-                if direction == "left": comp = elmtype().label(element.name).left().at(nodes[0])
+                if direction == "up": comp = elmtype().up().at(nodes[0])
+                if direction == "down": comp = elmtype().down().at(nodes[0])
+                if direction == "right": comp = elmtype().right().at(nodes[0])
+                if direction == "left": comp = elmtype().left().at(nodes[0])
 
                 take_direction(takenDirections, nodes[0], direction)
                 take_direction(takenDirections, comp.end, opposite[direction])
@@ -88,19 +100,20 @@ def draw(circuit, predefinedNodes = None):
                 
                 knownNodes[str(element.nodes[1])] = comp.end
 
-            elif nodes[0] != None and nodes[1] != None:
-                comp = elmtype().label(element.name).endpoints(nodes[0], nodes[1])
-                
-                #w = elm.Wire("|-").at(nodes[0])
-                #comp = elmtype().label(element.name).at(w.end)
-                #elm.Wire("|-").endpoints(comp.end, nodes[1])
-                
-                #comp = elmtype().label(element.name).at(nodes[0])
-                #print(nodes)
-                #print(comp.end)
-                #elm.Wire().to(nodes[1])
 
-                #comp = elmtype().label(element.name).endpoints(nodes[0], nodes[1])
+
+            elif nodes[0] != None and nodes[1] != None:
+                comp = elmtype().label(generate_label(element)).endpoints(nodes[0], nodes[1])
 
             else:
                 print("ERROR: ", nodes)
+
+            if elmtype == elm.SourceV: # PySpice defines + as first node, - as second
+                comp.reverse()
+
+            comp.label(generate_label(element))
+
+            firstElement = False
+
+        for key, val in knownNodes.items():
+            elm.Label().at(val).label(key).color("red")
