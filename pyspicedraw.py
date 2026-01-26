@@ -41,27 +41,31 @@ def rand_dir(takenDirDict, node):
     
 
 
-def draw(circuit):
+def draw(circuit, predefinedNodes = None):
     knownNodes = dict()
     takenDirections = dict()
     firstElement = True
+
+    if predefinedNodes != None:
+        for obj in predefinedNodes:
+            knownNodes[obj[0]] = obj[1]
     
     with schemdraw.Drawing():
         
         for element in circuit.elements:
-            print(element.__class__.__name__, element.name, element.nodes)
+            print(element.__class__.__name__, element.name, element.nodes, str(element.nodes[0]))
             elmtype = translate_type[element.__class__.__name__]
             
             nodes = [None, None]
             for i in range(0, len(element.nodes)):
-                if element.nodes[i] in knownNodes.keys():
-                    nodes[i] = knownNodes[element.nodes[i]]
+                if str(element.nodes[i]) in knownNodes.keys():
+                    nodes[i] = knownNodes[str(element.nodes[i])]
 
             
             if firstElement:
                 comp = elmtype().up().label(element.name)
-                knownNodes[element.nodes[0]] = comp.start
-                knownNodes[element.nodes[1]] = comp.end
+                knownNodes[str(element.nodes[0])] = comp.start
+                knownNodes[str(element.nodes[1])] = comp.end
 
                 take_direction(takenDirections, comp.start, "up")
                 take_direction(takenDirections, comp.end, "down")
@@ -82,7 +86,7 @@ def draw(circuit):
                 #w = elm.Wire("-|").at(nodes[0])
                 #comp = elmtype().label(element.name).right().at(w.end)
                 
-                knownNodes[element.nodes[1]] = comp.end
+                knownNodes[str(element.nodes[1])] = comp.end
 
             elif nodes[0] != None and nodes[1] != None:
                 comp = elmtype().label(element.name).endpoints(nodes[0], nodes[1])
