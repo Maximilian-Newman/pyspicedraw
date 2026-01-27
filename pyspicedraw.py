@@ -22,8 +22,8 @@ def take_direction(takenDirDict, node, direction, strict = True):
     # strict=False should be used to mark that a neighboring node is already claimed, but that there is no connection yet
     node = round_point(node)
 
-    if strict:
-        print("taking direction:", node, direction)
+    #if strict:
+    #    print("taking direction:", node, direction)
     
     if node in takenDirDict.keys():
         takenDirDict[node].append([direction, strict])
@@ -32,7 +32,7 @@ def take_direction(takenDirDict, node, direction, strict = True):
 
 def claim_node(takenDirDict, node):
     node = round_point(node)
-    print("claiming node:", node)
+    #print("claiming node:", node)
     take_direction(takenDirDict, [node[0]+3, node[1]], "left", strict=False)
     take_direction(takenDirDict, [node[0]-3, node[1]], "right", strict=False)
     take_direction(takenDirDict, [node[0], node[1]+3], "down", strict=False)
@@ -54,7 +54,6 @@ def avail_directions(takenDirDict, node, strict = True):
         else:
             l.append(direction)
             
-    print(node, l)
     return l
 
 def rand_dir(takenDirDict, node):
@@ -76,6 +75,26 @@ def standard_actions(comp, element, elmtype):
     if elmtype == elm.SourceV: # PySpice defines + as first node, - as second
         comp.reverse()
 
+def print_voltages(analysis):
+    for node in analysis.nodes.values():
+        print("Node", str(node), ":", float(node), "V")
+
+def print_currents(analysis):
+    for branch in analysis.branches.values():
+        print("Branch", str(branch), ":", float(branch), "A")
+
+def probe_all(circuit, componentType = "Resistor"):
+    if type(componentType) == str:
+        componentType = [componentType]
+
+    toModify = []
+    for element in circuit.elements:
+        if element.__class__.__name__ in componentType:
+            toModify.append(element)
+
+    for element in toModify:
+        element.plus.add_current_probe(circuit)
+
 
 def draw(circuit, predefinedNodes = None, separateGround = False, groundNode = "0"):
     knownNodes = dict()
@@ -88,8 +107,15 @@ def draw(circuit, predefinedNodes = None, separateGround = False, groundNode = "
             knownNodes[obj[0]] = obj[1]
     
     with schemdraw.Drawing():
-        
+
+        todoElements = []
         for element in circuit.elements:
+            todoElements.append(element)
+        
+        while len(todoElements) > 0:
+            element = todoElements[0]
+            todoElements.pop(0)
+            
             print()
             print()
             print(element.__class__.__name__, element.name, element.nodes)
@@ -108,7 +134,7 @@ def draw(circuit, predefinedNodes = None, separateGround = False, groundNode = "
             
             for i in range(0, len(nodeNames)):
                 if nodeNames[i] in knownNodes.keys():
-                    print("already known:", nodeNames[i])
+                    #print("already known:", nodeNames[i])
                     nodes[i] = round_point(knownNodes[nodeNames[i]])
 
             
@@ -167,7 +193,8 @@ def draw(circuit, predefinedNodes = None, separateGround = False, groundNode = "
                         
 
             else:
-                print("ERROR: ", nodes)
+                todoElements.append(element)
+                print("moded to back: ", nodes)
 
             firstElement = False
 
