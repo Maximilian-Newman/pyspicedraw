@@ -18,26 +18,27 @@ opposite = {
 }
 
 
-def take_direction(takenDirDict, node, direction):
-    #node = schemdraw.util.Point(node)
+def take_direction(takenDirDict, node, direction, strict = True):
+    # strict=False should be used to mark that a neighboring node is already claimed, but that there is no connection yet
     node = round_point(node)
 
-    print("taking direction:", node, direction)
+    if strict:
+        print("taking direction:", node, direction)
     
     if node in takenDirDict.keys():
-        takenDirDict[node].append(direction)
+        takenDirDict[node].append([direction, strict])
     else:
-        takenDirDict[node] = [direction]
+        takenDirDict[node] = [[direction, strict]]
 
 def claim_node(takenDirDict, node):
     node = round_point(node)
     print("claiming node:", node)
-    take_direction(takenDirDict, [node[0]+3, node[1]], "left")
-    take_direction(takenDirDict, [node[0]-3, node[1]], "right")
-    take_direction(takenDirDict, [node[0], node[1]+3], "down")
-    take_direction(takenDirDict, [node[0], node[1]-3], "up")
+    take_direction(takenDirDict, [node[0]+3, node[1]], "left", strict=False)
+    take_direction(takenDirDict, [node[0]-3, node[1]], "right", strict=False)
+    take_direction(takenDirDict, [node[0], node[1]+3], "down", strict=False)
+    take_direction(takenDirDict, [node[0], node[1]-3], "up", strict=False)
 
-def avail_directions(takenDirDict, node):
+def avail_directions(takenDirDict, node, strict = True):
     #node = schemdraw.util.Point(node)
     node = round_point(node)
     
@@ -46,8 +47,14 @@ def avail_directions(takenDirDict, node):
 
     l = []
     for direction in ["up", "down", "right", "left"]:
-        if direction not in takenDirDict[node]:
+        if [direction, True] in takenDirDict[node]:
+            pass
+        elif [direction, False] in takenDirDict[node] and strict:
+            pass
+        else:
             l.append(direction)
+            
+    print(node, l)
     return l
 
 def rand_dir(takenDirDict, node):
@@ -113,8 +120,8 @@ def draw(circuit, predefinedNodes = None, separateGround = False, groundNode = "
                 knownNodes[nodeNames[0]] = comp.start
                 knownNodes[nodeNames[1]] = comp.end
 
-                #take_direction(takenDirections, comp.start, "up")
-                #take_direction(takenDirections, comp.end, "down")
+                take_direction(takenDirections, comp.start, "down")
+                take_direction(takenDirections, comp.end, "up")
                 claim_node(takenDirections, comp.start)
                 claim_node(takenDirections, comp.end)
 
@@ -130,8 +137,8 @@ def draw(circuit, predefinedNodes = None, separateGround = False, groundNode = "
 
                 standard_actions(comp, element, elmtype)
 
-                #take_direction(takenDirections, nodes[0], direction)
-                #take_direction(takenDirections, comp.end, opposite[direction])
+                take_direction(takenDirections, nodes[0], direction)
+                take_direction(takenDirections, comp.end, opposite[direction])
                 claim_node(takenDirections, comp.end)
                 
                 knownNodes[nodeNames[1]] = comp.end
@@ -142,21 +149,21 @@ def draw(circuit, predefinedNodes = None, separateGround = False, groundNode = "
                 comp = elmtype().endpoints(nodes[0], nodes[1])
                 standard_actions(comp, element, elmtype)
                 
-                #if nodes[0][0] == nodes[1][0]: # same x
-                #    if nodes[0][1] > nodes[1][1]:
-                #        take_direction(takenDirections, nodes[0], "down")
-                #        take_direction(takenDirections, nodes[1], "up")
-                #    else:
-                #        take_direction(takenDirections, nodes[0], "up")
-                #        take_direction(takenDirections, nodes[1], "down")
+                if nodes[0][0] == nodes[1][0]: # same x
+                    if nodes[0][1] > nodes[1][1]:
+                        take_direction(takenDirections, nodes[0], "down")
+                        take_direction(takenDirections, nodes[1], "up")
+                    else:
+                        take_direction(takenDirections, nodes[0], "up")
+                        take_direction(takenDirections, nodes[1], "down")
                 
-                #if nodes[0][1] == nodes[1][1]: # same y
-                #    if nodes[0][0] > nodes[1][0]:
-                #        take_direction(takenDirections, nodes[0], "left")
-                #        take_direction(takenDirections, nodes[1], "right")
-                #    else:
-                #        take_direction(takenDirections, nodes[0], "right")
-                #        take_direction(takenDirections, nodes[1], "left")
+                if nodes[0][1] == nodes[1][1]: # same y
+                    if nodes[0][0] > nodes[1][0]:
+                        take_direction(takenDirections, nodes[0], "left")
+                        take_direction(takenDirections, nodes[1], "right")
+                    else:
+                        take_direction(takenDirections, nodes[0], "right")
+                        take_direction(takenDirections, nodes[1], "left")
                         
 
             else:
@@ -166,7 +173,7 @@ def draw(circuit, predefinedNodes = None, separateGround = False, groundNode = "
 
         for key, val in knownNodes.items():
             if key.startswith("GND_"):
-                avail = avail_directions(takenDirections, val)
+                avail = avail_directions(takenDirections, val, strict=False)
                 if "down" in avail:
                     elm.Ground().at(val)
                 elif "right" in avail:
