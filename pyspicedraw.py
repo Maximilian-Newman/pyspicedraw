@@ -6,9 +6,10 @@ import schemdraw.elements as elm
 import random
 
 translate_type = {
-"VoltageSource" : elm.SourceV,
-"Resistor" : elm.Resistor
-    }
+    "VoltageSource" : elm.SourceV,
+    "Resistor" : elm.Resistor,
+    "Wire" : elm.Wire
+}
 
 opposite = {
     "right" : "left",
@@ -65,6 +66,11 @@ def generate_label(element):
         label += "\n" + str(element.dc_value)
     elif element.__class__.__name__ == "Resistor":
         label += "\n" + str(element.resistance)
+
+    # remove labels from ghost voltage sources added by PySpice
+    if element.__class__.__name__ == "VoltageSource":
+        if int(element.dc_value) == 0:
+            label = ""
     return label
 
 def round_point(point):
@@ -96,9 +102,10 @@ def probe_all(circuit, componentType = "Resistor"):
         element.plus.add_current_probe(circuit)
 
 
-def draw(circuit, predefinedNodes = None, separateGround = False, groundNode = "0"):
+def draw(circuit, predefinedNodes = None, separateGround = True, groundNode = "0", analysis = None):
     knownNodes = dict()
     takenDirections = dict()
+    wires = dict() # keep track to add current labels after
     firstElement = True
     gndCount = 0
 
@@ -116,10 +123,15 @@ def draw(circuit, predefinedNodes = None, separateGround = False, groundNode = "
             element = todoElements[0]
             todoElements.pop(0)
             
-            print()
-            print()
-            print(element.__class__.__name__, element.name, element.nodes)
+            #print()
+            #print()
+            #print(element.__class__.__name__, element.name, element.nodes)
             elmtype = translate_type[element.__class__.__name__]
+
+            if elmtype == elm.SourceV:
+                if int(element.dc_value) == 0:
+                    elmtype = elm.Line
+                    #pass
 
             comp = None
             
@@ -157,9 +169,9 @@ def draw(circuit, predefinedNodes = None, separateGround = False, groundNode = "
                 direction = rand_dir(takenDirections, nodes[0])
 
                 if direction == "up": comp = elmtype().up().at(nodes[0])
-                if direction == "down": comp = elmtype().down().at(nodes[0])
-                if direction == "right": comp = elmtype().right().at(nodes[0])
-                if direction == "left": comp = elmtype().left().at(nodes[0])
+                elif direction == "down": comp = elmtype().down().at(nodes[0])
+                elif direction == "right": comp = elmtype().right().at(nodes[0])
+                elif direction == "left": comp = elmtype().left().at(nodes[0])
 
                 standard_actions(comp, element, elmtype)
 
@@ -194,12 +206,17 @@ def draw(circuit, predefinedNodes = None, separateGround = False, groundNode = "
 
             else:
                 todoElements.append(element)
-                print("moded to back: ", nodes)
+                #print("moved to back: ", nodes)
+
+            if elmtype == elm.Line and comp != None:
+                wires[element.name] = comp
 
             firstElement = False
 
         for key, val in knownNodes.items():
-            if key.startswith("GND_"):
+            
+            if key.startswith("GND_"): # draw ground symbols
+                
                 avail = avail_directions(takenDirections, val, strict=False)
                 if "down" in avail:
                     elm.Ground().at(val)
@@ -214,6 +231,28 @@ def draw(circuit, predefinedNodes = None, separateGround = False, groundNode = "
                     w = elm.Wire("n").to(val)
                 else:
                     print("ERROR: couldn't draw ground, node full")
-            else:
-                elm.Label().at(val).label(key).color("red")
-                    
+
+            elif not key.endswith("_plus"): # label nodes
+                nodeLabel = key
+                
+                if analysis != None: # add voltage to label
+                    for node in analysis.nodes.values():
+                        if str(node) == key.lower():
+                            nodeLabel += "\n{:.4g} V".format(float(node))
+
+                loc = "top"
+                avail = avail_directions(takenDirections, val, strict=False)
+                if avail != []:
+                    if "up" not in avail:
+                        loc = avail[0]
+                        if loc == "down": loc = "bottom"
+                
+                elm.Dot().at(val).label(nodeLabel, loc=loc).color("red")
+
+        if analysis != None:
+            for key, val in wires.items():
+                for branch in analysis.branches.values():
+                    if str(branch) == key.lower():
+                        arrow = elm.CurrentLabel().at(val).label("{:.4g} A".format(abs(float(branch)))).color("blue")
+                        if float(branch) < 0:
+                            arrow.reverse()
